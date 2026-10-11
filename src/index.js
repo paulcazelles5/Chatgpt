@@ -55,7 +55,41 @@ async function confirm(message, title, description, action) {
   );
   return message.reply({ embeds: [new EmbedBuilder().setTitle(title).setDescription(description).setColor(0xED4245)], components: [buttons] });
 }
-const help = "Payout Central — Commands\nMember: !help, !verify, !checkserver <serverID>, !join <serverID>, !profile [@user]\nAdmin: !stats, !auth, !stock, !restock <amount>, !remove <amount>, !prefix set <prefix>, !grant @user <command|all>, !grant revoke @user <command|all>, !permission @user, !link, !blacklist, !queue, !maintenance, !cooldown, !server leave, !logs, !logfarm, !logserver, !logerrors, !logadmin, !announce, !update";
+const helpEmbed = () => new EmbedBuilder()
+  .setColor(0x5865F2)
+  .setTitle("Payout Central | Command Guide")
+  .setDescription("A quick reference to available commands. Replace `!` with your configured prefix if it has been changed.")
+  .addFields(
+    { name: "👤 Member Commands", value: [
+      "`!help` — Display this command guide",
+      "`!verify` — Link and verify your Discord account",
+      "`!checkserver <serverID>` — View server information",
+      "`!join <serverID>` — Submit a join request",
+      "`!profile [@user]` — View a user profile"
+    ].join("\n") },
+    { name: "🛡️ Administration", value: [
+      "`!stats` — View bot statistics",
+      "`!auth` — View authorization totals",
+      "`!stock` — View current stock",
+      "`!restock <amount>` — Increase the stock counter",
+      "`!remove <amount>` — Remove from the stock counter",
+      "`!prefix set <prefix>` — Change the command prefix",
+      "`!grant @user <command|all>` — Grant command access",
+      "`!grant revoke @user <command|all>` — Revoke command access",
+      "`!permission @user` — View a user’s permissions",
+      "`!link` — Display or configure verification-link text",
+      "`!blacklist` — Manage the server blacklist",
+      "`!queue` — View and manage join requests",
+      "`!maintenance` — Manage maintenance mode",
+      "`!cooldown <seconds>` — Set the join-request cooldown",
+      "`!server leave <serverID>` — Remove the bot from a server",
+      "`!logs status` — View logging settings",
+      "`!logfarm`, `!logserver`, `!logerrors`, `!logadmin` — Configure log channels",
+      "`!announce <serverID|all> <message>` — Send an announcement",
+      "`!update` — Manage update requests"
+    ].join("\n") }
+  )
+  .setFooter({ text: "Payout Central • Command Center" });
 
 app.get("/", (_req, res) => res.status(200).send("Payout Central bot is online."));
 app.get("/health", (_req, res) => res.json({ status: "ok", botReady: client.isReady() }));
@@ -126,7 +160,7 @@ client.on("messageCreate", async message => {
   if (get("maintenance") === "1" && !isOwner(message.author.id) && !db.prepare("SELECT 1 FROM maintenance_allowed WHERE user_id=?").get(message.author.id)) return message.reply("The bot is currently under maintenance.");
   try {
     switch (cmd) {
-      case "help": return message.reply(help);
+      case "help": return message.reply({ embeds: [helpEmbed()] });
       case "verify": {
         if (message.guild.id === get("payout_server_id")) return message.reply("Verification links are not available in this server.");
         const url = baseUrl + "/oauth/start?discord_id=" + message.author.id;
