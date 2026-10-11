@@ -89,7 +89,7 @@ app.get("/oauth/callback", async (req, res) => {
     if (user.id !== record.requestedDiscordId) return res.status(403).send("The authorized Discord account does not match the account that requested verification.");
     db.prepare("INSERT INTO oauth_users(user_id,created_at,last_seen) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=excluded.last_seen").run(user.id, now(), now());
     set("max_auth_ever", Math.max(Number(get("max_auth_ever")), db.prepare("SELECT COUNT(*) n FROM oauth_users").get().n));
-    res.send("<!doctype html><html><head><meta charset=\\"utf-8\\"><meta name=\\"viewport\\" content=\\"width=device-width\\"><title>Verified</title></head><body style=\\"font:16px system-ui;max-width:640px;margin:12vh auto;padding:24px\\"><h1>Verification complete</h1><p>Your Discord account has been linked. No server join happened automatically. You can close this page.</p></body></html>");
+    res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Verified</title></head><body style="font:16px system-ui;max-width:640px;margin:12vh auto;padding:24px"><h1>Verification complete</h1><p>Your Discord account has been linked. No server join happened automatically. You can close this page.</p></body></html>`);
   } catch (error) { console.error("OAuth callback failed:", error.message); res.status(500).send("Verification failed. Please try again or contact an administrator."); }
 });
 app.listen(Number(process.env.PORT || 3000), "0.0.0.0", () => console.log("HTTP server listening on port " + (process.env.PORT || 3000)));
