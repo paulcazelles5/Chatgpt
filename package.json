@@ -1,0 +1,20 @@
+{
+  "name": "payout-central-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Discord.js bot with OAuth2 verification, queue management, and admin commands.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
