@@ -55,7 +55,7 @@ async function confirm(message, title, description, action) {
   );
   return message.reply({ embeds: [new EmbedBuilder().setTitle(title).setDescription(description).setColor(0xED4245)], components: [buttons] });
 }
-const help = "Payout Central — Commands\\nMember: !help, !verify, !checkserver <serverID>, !join <serverID>, !profile [@user]\\nAdmin: !stats, !auth, !stock, !restock <amount>, !remove <amount>, !prefix set <prefix>, !grant @user <command|all>, !grant revoke @user <command|all>, !permission @user, !link, !blacklist, !queue, !maintenance, !cooldown, !server leave, !logs, !logfarm, !logserver, !logerrors, !logadmin, !announce, !update";
+const help = "Payout Central — Commands\nMember: !help, !verify, !checkserver <serverID>, !join <serverID>, !profile [@user]\nAdmin: !stats, !auth, !stock, !restock <amount>, !remove <amount>, !prefix set <prefix>, !grant @user <command|all>, !grant revoke @user <command|all>, !permission @user, !link, !blacklist, !queue, !maintenance, !cooldown, !server leave, !logs, !logfarm, !logserver, !logerrors, !logadmin, !announce, !update";
 
 app.get("/", (_req, res) => res.status(200).send("Payout Central bot is online."));
 app.get("/health", (_req, res) => res.json({ status: "ok", botReady: client.isReady() }));
@@ -99,14 +99,22 @@ client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
   const [verb, id] = interaction.customId.split(":");
   const item = confirmations.get(id);
-  if (!item) return interaction.reply({ content: "This confirmation has expired.", ephemeral: true });
-  if (interaction.user.id !== item.user) return interaction.reply({ content: "Only the command author can confirm this action.", ephemeral: true });
+  if (!item) return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xFEE75C).setTitle("Confirmation Expired").setDescription("This confirmation is no longer available. Run the command again if needed.")], ephemeral: true });
+  if (interaction.user.id !== item.user) return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle("Not Authorized").setDescription("Only the user who initiated this action can confirm it.")], ephemeral: true });
   confirmations.delete(id);
-  if (verb === "cancel") return interaction.update({ content: "Action cancelled.", embeds: [], components: [] });
-  try { await item.action(); await interaction.update({ content: "Action completed.", embeds: [], components: [] }); }
-  catch (error) { console.error(error); await interaction.update({ content: "Action failed. Check the bot logs.", embeds: [], components: [] }); }
+  if (verb === "cancel") return interaction.update({ content: null, embeds: [new EmbedBuilder().setColor(0x99AAB5).setTitle("Action Cancelled").setDescription("No changes were made.").setFooter({ text: "Payout Central • Command Center" })], components: [] });
+  try { await item.action(); await interaction.update({ content: null, embeds: [new EmbedBuilder().setColor(0x57F287).setTitle("Action Completed").setDescription("The requested action was completed successfully.").setFooter({ text: "Payout Central • Command Center" })], components: [] }); }
+  catch (error) { console.error(error); await interaction.update({ content: null, embeds: [new EmbedBuilder().setColor(0xED4245).setTitle("Action Failed").setDescription("The action could not be completed. Please check the bot logs or contact an administrator.").setFooter({ text: "Payout Central • Command Center" })], components: [] }); }
 });
 client.on("messageCreate", async message => {
+  const nativeReply = message.reply.bind(message);
+  message.reply = (payload, ...rest) => {
+    if (typeof payload === "string") {
+      const description = payload.length > 4000 ? payload.slice(0, 3990) + "…" : payload;
+      return nativeReply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription(description).setFooter({ text: "Payout Central • Command Center" })] }, ...rest);
+    }
+    return nativeReply(payload, ...rest);
+  };
   if (message.author.bot || !message.guild || !message.content.startsWith(get("prefix"))) return;
   const raw = message.content.slice(get("prefix").length).trim();
   if (!raw) return;
@@ -133,7 +141,7 @@ client.on("messageCreate", async message => {
         const total = db.prepare("SELECT COUNT(*) n FROM oauth_users").get().n;
         const recent = db.prepare("SELECT COUNT(*) n FROM oauth_users WHERE created_at>=?").get(now() - 86400000).n;
         const max = Math.max(Number(get("max_auth_ever")), total); set("max_auth_ever", max);
-        return message.reply("OAuth authorizations\\nCurrent: " + total + "\\nAdded in the last 24 hours: " + recent + "\\nAll-time maximum: " + max);
+        return message.reply("OAuth authorizations\nCurrent: " + total + "\nAdded in the last 24 hours: " + recent + "\nAll-time maximum: " + max);
       }
       case "stock": return message.reply("Current stock: " + get("stock"));
       case "restock": {
@@ -178,7 +186,7 @@ client.on("messageCreate", async message => {
         const guild = client.guilds.cache.get(id);
         if (!guild) return message.reply("I am not in that server, so I cannot inspect it.");
         const black = db.prepare("SELECT reason FROM blacklist WHERE guild_id=?").get(id);
-        return message.reply(guild.name + " (" + id + ")\\nMembers: " + guild.memberCount + "\\nStock counter: " + get("stock") + "\\nBlacklisted: " + (black ? "Yes — " + black.reason : "No"));
+        return message.reply(guild.name + " (" + id + ")\nMembers: " + guild.memberCount + "\nStock counter: " + get("stock") + "\nBlacklisted: " + (black ? "Yes — " + black.reason : "No"));
       }
       case "join": {
         const id = args[0]; if (!id) return message.reply("Usage: !join <serverID>");
@@ -199,12 +207,12 @@ client.on("messageCreate", async message => {
       }
       case "stats": {
         const auth = db.prepare("SELECT COUNT(*) n FROM oauth_users").get().n, queued = db.prepare("SELECT COUNT(*) n FROM queue").get().n;
-        return message.reply("Global statistics\\nOAuth authorizations: " + auth + "\\nStock: " + get("stock") + "\\nQueue: " + queued + "/" + get("max_queue") + "\\nBot servers: " + client.guilds.cache.size);
+        return message.reply("Global statistics\nOAuth authorizations: " + auth + "\nStock: " + get("stock") + "\nQueue: " + queued + "/" + get("max_queue") + "\nBot servers: " + client.guilds.cache.size);
       }
       case "blacklist": {
         if (args[0]?.toLowerCase() === "list") {
           const rows = db.prepare("SELECT * FROM blacklist ORDER BY created_at DESC").all();
-          return message.reply(rows.length ? rows.map(r => r.guild_id + ": " + r.reason).join("\\n").slice(0,1900) : "No blacklisted servers.");
+          return message.reply(rows.length ? rows.map(r => r.guild_id + ": " + r.reason).join("\n").slice(0,1900) : "No blacklisted servers.");
         }
         if (args[0]?.toLowerCase() === "revoke" && args[1]) { db.prepare("DELETE FROM blacklist WHERE guild_id=?").run(args[1]); return message.reply("Blacklist entry removed."); }
         const id = args[0], reason = args.slice(1).join(" ");
@@ -221,7 +229,7 @@ client.on("messageCreate", async message => {
         if (sub === "move" && args[1] && amount(args[2]) !== null) { db.prepare("UPDATE queue SET priority=? WHERE guild_id=?").run(100000 - amount(args[2]), args[1]); return message.reply("Queue order updated."); }
         if (sub === "info" && args[1]) { const r = db.prepare("SELECT * FROM queue WHERE guild_id=?").get(args[1]); return message.reply(r ? "Server " + r.guild_id + "; requester <@" + r.requester_id + ">; allocation " + r.reward : "No request found."); }
         const rows = db.prepare("SELECT * FROM queue ORDER BY priority DESC,created_at ASC").all();
-        return message.reply(rows.length ? rows.map((r, i) => (i + 1) + ". " + r.guild_id + " — <@" + r.requester_id + "> — " + r.reward).join("\\n").slice(0,1900) : "The queue is empty.");
+        return message.reply(rows.length ? rows.map((r, i) => (i + 1) + ". " + r.guild_id + " — <@" + r.requester_id + "> — " + r.reward).join("\n").slice(0,1900) : "The queue is empty.");
       }
       case "maintenance": {
         const sub = args[0]?.toLowerCase(), target = userMention(message);
@@ -241,7 +249,7 @@ client.on("messageCreate", async message => {
         const target = userMention(message) || message.author, row = usage(target.id);
         const linked = !!db.prepare("SELECT 1 FROM oauth_users WHERE user_id=?").get(target.id);
         const queued = db.prepare("SELECT guild_id FROM queue WHERE requester_id=?").all(target.id).map(r => r.guild_id);
-        return message.reply("Profile: " + target.tag + "\\nOAuth linked: " + (linked ? "Yes" : "No") + "\\nCommands used: " + row.commands + "\\nJoin requests: " + row.joins + "\\nQueued destinations: " + (queued.join(", ") || "None"));
+        return message.reply("Profile: " + target.tag + "\nOAuth linked: " + (linked ? "Yes" : "No") + "\nCommands used: " + row.commands + "\nJoin requests: " + row.joins + "\nQueued destinations: " + (queued.join(", ") || "None"));
       }
       case "server": {
         if (args[0]?.toLowerCase() !== "leave" || !args[1]) return message.reply("Usage: !server leave <serverID>");
@@ -263,7 +271,7 @@ client.on("messageCreate", async message => {
       case "logs": {
         if (args[0] !== "status") return message.reply("Usage: !logs status");
         const rows = db.prepare("SELECT * FROM logs").all();
-        return message.reply(rows.map(r => r.kind + ": " + (r.enabled ? "enabled" : "disabled") + "; " + (r.channel_id ? "<#" + r.channel_id + ">" : "channel not set")).join("\\n"));
+        return message.reply(rows.map(r => r.kind + ": " + (r.enabled ? "enabled" : "disabled") + "; " + (r.channel_id ? "<#" + r.channel_id + ">" : "channel not set")).join("\n"));
       }
       case "logfarm": case "logserver": case "logerrors": case "logadmin": {
         const kind = cmd.slice(3), sub = args[0]?.toLowerCase();
@@ -274,7 +282,7 @@ client.on("messageCreate", async message => {
       case "update": {
         const sub = args[0]?.toLowerCase();
         if (sub === "status") { const r = db.prepare("SELECT * FROM updates ORDER BY id DESC LIMIT 1").get(); return message.reply(r ? "#" + r.id + " " + r.status + ": " + r.prompt : "No pending updates."); }
-        if (sub === "history") { const rows = db.prepare("SELECT * FROM updates ORDER BY id DESC LIMIT 10").all(); return message.reply(rows.length ? rows.map(r => "#" + r.id + " [" + r.status + "] " + r.prompt).join("\\n").slice(0,1900) : "No update history."); }
+        if (sub === "history") { const rows = db.prepare("SELECT * FROM updates ORDER BY id DESC LIMIT 10").all(); return message.reply(rows.length ? rows.map(r => "#" + r.id + " [" + r.status + "] " + r.prompt).join("\n").slice(0,1900) : "No update history."); }
         if (sub === "cancel") { db.prepare("UPDATE updates SET status='cancelled' WHERE status='pending'").run(); return message.reply("Pending update notes cancelled."); }
         if (sub === "undo") { db.prepare("UPDATE updates SET status='undone' WHERE id=(SELECT id FROM updates WHERE status='applied' ORDER BY id DESC LIMIT 1)").run(); return message.reply("Latest update note marked undone; source code was not changed."); }
         const prompt = full.slice(full.indexOf(" ") + 1).trim();
